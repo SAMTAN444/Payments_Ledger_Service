@@ -8,7 +8,7 @@ class AccountService(
 	private val accountRepository: AccountRepository,
 ) {
 
-	fun create(request: CreateAccountRequest): AccountResponse = 
+	fun create(request: CreateAccountRequest): AccountResponse =
 		accountRepository.insert(
 			id = UUID.randomUUID(),
 			ownerName = request.ownerName,
@@ -16,6 +16,15 @@ class AccountService(
 			kind = request.kind,
 		)
 
-	fun get(id: UUID): AccountResponse? = 
+	fun get(id: UUID): AccountResponse? =
 		accountRepository.findById(id)
+
+	fun getBalance(id: UUID): BalanceResponse? {
+		val account = accountRepository.findById(id) ?: return null
+		return BalanceResponse(
+			accountId = account.id,
+			currency = account.currency,
+			balance = accountRepository.balanceOf(account.id),
+		)
+	}
 }

@@ -28,4 +28,10 @@ class AccountController(
 		val account = accountService.get(id) ?: return ResponseEntity.notFound().build()
 		return ResponseEntity.ok(account)
 	}
+
+	@GetMapping("/{id}/balance")
+	fun getBalance(@PathVariable id: UUID): ResponseEntity<BalanceResponse> {
+		val balance = accountService.getBalance(id) ?: return ResponseEntity.notFound().build()
+		return ResponseEntity.ok(balance)
+	}
 }
