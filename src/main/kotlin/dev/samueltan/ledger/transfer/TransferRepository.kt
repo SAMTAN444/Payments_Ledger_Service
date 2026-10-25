@@ -26,16 +26,28 @@ class TransferRepository(
 		toAccountId: UUID,
 		amount: Long,
 		currency: String,
+		idempotencyKey: String,
 	): TransferResponse =
 		jdbcTemplate.query(
 			"""
-			INSERT INTO transfers (id, from_account_id, to_account_id, amount, currency)
-			VALUES (?, ?, ?, ?, ?)
+			INSERT INTO transfers (id, from_account_id, to_account_id, amount, currency, idempotency_key)
+			VALUES (?, ?, ?, ?, ?, ?)
 			RETURNING id, from_account_id, to_account_id, amount, currency, created_at
 			""",
 			rowMapper,
-			id, fromAccountId, toAccountId, amount, currency,
+			id, fromAccountId, toAccountId, amount, currency, idempotencyKey,
 		).single()
+
+	fun findByIdempotencyKey(idempotencyKey: String): TransferResponse? =
+		jdbcTemplate.query(
+			"""
+			SELECT id, from_account_id, to_account_id, amount, currency, created_at
+			FROM transfers
+			WHERE idempotency_key = ?
+			""",
+			rowMapper,
+			idempotencyKey,
+		).firstOrNull()
 
 	fun insertEntry(transferId: UUID, accountId: UUID, amount: Long) {
 		jdbcTemplate.update(

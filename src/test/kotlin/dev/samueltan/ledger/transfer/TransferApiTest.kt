@@ -92,6 +92,51 @@ class TransferApiTest : PostgresIntegrationTest() {
 	}
 
 	@Test
+	fun `same key and same body returns the original transfer and moves money once`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		val key = UUID.randomUUID().toString()
+
+		val firstJson = transfer(cashIn, samuel, 5000, key = key)
+			.andExpect { status { isCreated() } }
+			.andReturn().response.contentAsString
+		val secondJson = transfer(cashIn, samuel, 5000, key = key)
+			.andExpect { status { isCreated() } }
+			.andReturn().response.contentAsString
+
+		assertEquals(JsonPath.read<String>(firstJson, "$.id"), JsonPath.read<String>(secondJson, "$.id"))
+		assertEquals(firstJson, secondJson)
+		assertEquals(5000L, balanceOf(samuel))
+		assertEquals(-5000L, balanceOf(cashIn))
+	}
+
+	@Test
+	fun `same key with a different amount returns 422 and moves no money`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		val key = UUID.randomUUID().toString()
+		transfer(cashIn, samuel, 5000, key = key).andExpect { status { isCreated() } }
+
+		transfer(cashIn, samuel, 6000, key = key).andExpect {
+			status { isEqualTo(422) }
+			jsonPath("$.detail") { value("Idempotency-Key was already used for a different request") }
+		}
+
+		assertEquals(5000L, balanceOf(samuel))
+		assertEquals(-5000L, balanceOf(cashIn))
+	}
+
+	@Test
+	fun `missing Idempotency-Key header returns 400`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+
+		transfer(cashIn, samuel, 5000, key = null).andExpect { status { isBadRequest() } }
+
+		assertEquals(0L, balanceOf(samuel))
+	}
+
+	@Test
 	fun `concurrent transfers never overdraw a customer`() {
 		val cashIn = createAccount("Cash In", "SYSTEM")
 		val samuel = createAccount("Samuel", "CUSTOMER")
@@ -119,6 +164,37 @@ class TransferApiTest : PostgresIntegrationTest() {
 		assertEquals(10000L, balanceOf(alice))
 	}
 
+	@Test
+	fun `concurrent requests with the same key move money only once`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		val key = UUID.randomUUID().toString()
+
+		val threadCount = 10
+		val executor = Executors.newFixedThreadPool(threadCount)
+		val startGate = CountDownLatch(1)
+
+		val futures = (1..threadCount).map {
+			executor.submit(Callable {
+				startGate.await()
+				transfer(cashIn, samuel, 5000, key = key).andReturn().response
+			})
+		}
+
+		startGate.countDown()
+		val responses = futures.map { it.get(30, TimeUnit.SECONDS) }
+		executor.shutdown()
+
+		val statuses = responses.map { it.status }
+		assertEquals(threadCount, statuses.count { it == 201 }, "statuses were $statuses")
+
+		val ids = responses.map { JsonPath.read<String>(it.contentAsString, "$.id") }.toSet()
+		assertEquals(1, ids.size, "transfer ids were $ids")
+
+		assertEquals(5000L, balanceOf(samuel))
+		assertEquals(-5000L, balanceOf(cashIn))
+	}
+
 	// ---------- Helpers ----------
 
 	private fun createAccount(ownerName: String, kind: String, currency: String = "SGD"): String {
@@ -129,9 +205,18 @@ class TransferApiTest : PostgresIntegrationTest() {
 		return JsonPath.read(json, "$.id")
 	}
 
-	private fun transfer(from: String, to: String, amount: Long, currency: String = "SGD"): ResultActionsDsl =
+	private fun transfer(
+		from: String,
+		to: String,
+		amount: Long,
+		currency: String = "SGD",
+		key: String? = UUID.randomUUID().toString(),
+	): ResultActionsDsl =
 		mockMvc.post("/transfers") {
 			contentType = MediaType.APPLICATION_JSON
+			if (key != null) {
+				header("Idempotency-Key", key)
+			}
 			content = """{"fromAccountId":"$from","toAccountId":"$to","amount":$amount,"currency":"$currency"}"""
 		}
 
