@@ -1,5 +1,6 @@
 package dev.samueltan.ledger.account
 
+import dev.samueltan.ledger.common.NotFoundException
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -26,5 +27,16 @@ class AccountService(
 			currency = account.currency,
 			balance = accountRepository.balanceOf(account.id),
 		)
+	}
+
+	fun getEntries(id: UUID, limit: Int, before: Long?): EntriesPageResponse {
+		accountRepository.findById(id) ?: throw NotFoundException("Account $id not found")
+
+		val rows = accountRepository.findEntries(id, before, limit + 1)
+		val hasMore = rows.size > limit
+		val entries = rows.take(limit)
+		val nextCursor = if (hasMore) entries.last().entryId else null
+
+		return EntriesPageResponse(entries = entries, nextCursor = nextCursor)
 	}
 }

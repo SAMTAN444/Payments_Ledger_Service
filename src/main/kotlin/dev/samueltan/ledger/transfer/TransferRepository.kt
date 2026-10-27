@@ -49,6 +49,17 @@ class TransferRepository(
 			idempotencyKey,
 		).firstOrNull()
 
+	fun findById(id: UUID): TransferResponse? =
+		jdbcTemplate.query(
+			"""
+			SELECT id, from_account_id, to_account_id, amount, currency, created_at
+			FROM transfers
+			WHERE id = ?
+			""",
+			rowMapper,
+			id,
+		).firstOrNull()
+
 	fun insertEntry(transferId: UUID, accountId: UUID, amount: Long) {
 		jdbcTemplate.update(
 			"INSERT INTO entries (transfer_id, account_id, amount) VALUES (?, ?, ?)",
