@@ -70,4 +70,8 @@ class TransferService(
 
 		return transfer
 	}
+
+	fun get(id: UUID): TransferResponse =
+		transferRepository.findById(id)
+			?: throw NotFoundException("Transfer $id not found")
 }

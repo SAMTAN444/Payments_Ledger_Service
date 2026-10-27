@@ -19,6 +19,16 @@ class AccountRepository(
 		)
 	}
 
+	private val entryRowMapper = RowMapper<EntryResponse> { rs, _ ->
+		EntryResponse(
+			entryId = rs.getLong("id"),
+			transferId = rs.getObject("transfer_id", UUID::class.java),
+			amount = rs.getLong("amount"),
+			counterpartyAccountId = rs.getObject("counterparty_account_id", UUID::class.java),
+			createdAt = rs.getTimestamp("created_at").toInstant(),
+		)
+	}
+
 	fun insert(id: UUID, ownerName: String, currency: String, kind: String): AccountResponse =
 		jdbcTemplate.query(
 			"""
@@ -62,4 +72,26 @@ class AccountRepository(
 			Long::class.java,
 			accountId,
 		) ?: 0L
+
+	fun findEntries(accountId: UUID, before: Long?, limit: Int): List<EntryResponse> =
+		jdbcTemplate.query(
+			"""
+			SELECT e.id,
+				e.transfer_id,
+				e.amount,
+				CASE
+					WHEN t.from_account_id = e.account_id THEN t.to_account_id
+					ELSE t.from_account_id
+				END AS counterparty_account_id,
+				t.created_at
+			FROM entries e
+			JOIN transfers t ON t.id = e.transfer_id
+			WHERE e.account_id = ?
+				AND e.id < ?
+			ORDER BY e.id DESC
+			LIMIT ?
+			""",
+			entryRowMapper,
+			accountId, before ?: Long.MAX_VALUE, limit,
+		)
 }

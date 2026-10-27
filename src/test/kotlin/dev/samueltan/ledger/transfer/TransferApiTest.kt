@@ -3,6 +3,7 @@ package dev.samueltan.ledger.transfer
 import com.jayway.jsonpath.JsonPath
 import dev.samueltan.ledger.common.PostgresIntegrationTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -137,6 +138,90 @@ class TransferApiTest : PostgresIntegrationTest() {
 	}
 
 	@Test
+	fun `get transfer by id returns it`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		val createdJson = transfer(cashIn, samuel, 2500)
+			.andExpect { status { isCreated() } }
+			.andReturn().response.contentAsString
+		val id = JsonPath.read<String>(createdJson, "$.id")
+
+		mockMvc.get("/transfers/$id").andExpect {
+			status { isOk() }
+			jsonPath("$.id") { value(id) }
+			jsonPath("$.fromAccountId") { value(cashIn) }
+			jsonPath("$.toAccountId") { value(samuel) }
+			jsonPath("$.amount") { value(2500) }
+			jsonPath("$.currency") { value("SGD") }
+		}
+	}
+
+	@Test
+	fun `get unknown transfer returns 404`() {
+		mockMvc.get("/transfers/${UUID.randomUUID()}").andExpect {
+			status { isNotFound() }
+		}
+	}
+
+	@Test
+	fun `entries are newest first with signed amounts and counterparties`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		val alice = createAccount("Alice", "CUSTOMER")
+		transfer(cashIn, samuel, 10000).andExpect { status { isCreated() } }
+		transfer(samuel, alice, 1050).andExpect { status { isCreated() } }
+
+		val json = entriesPage(samuel)
+
+		val amounts = JsonPath.read<List<Number>>(json, "$.entries[*].amount").map { it.toLong() }
+		assertEquals(listOf(-1050L, 10000L), amounts)
+		val counterparties = JsonPath.read<List<String>>(json, "$.entries[*].counterpartyAccountId")
+		assertEquals(listOf(alice, cashIn), counterparties)
+		assertNull(JsonPath.read<Number?>(json, "$.nextCursor"))
+	}
+
+	@Test
+	fun `entries paginate with a cursor without duplicates or gaps`() {
+		val cashIn = createAccount("Cash In", "SYSTEM")
+		val samuel = createAccount("Samuel", "CUSTOMER")
+		repeat(5) {
+			transfer(cashIn, samuel, 100).andExpect { status { isCreated() } }
+		}
+
+		val page1 = entriesPage(samuel, limit = 2)
+		val cursor1 = JsonPath.read<Number>(page1, "$.nextCursor").toLong()
+		val page2 = entriesPage(samuel, limit = 2, before = cursor1)
+		val cursor2 = JsonPath.read<Number>(page2, "$.nextCursor").toLong()
+		val page3 = entriesPage(samuel, limit = 2, before = cursor2)
+
+		assertEquals(2, entryIds(page1).size)
+		assertEquals(2, entryIds(page2).size)
+		assertEquals(1, entryIds(page3).size)
+		assertNull(JsonPath.read<Number?>(page3, "$.nextCursor"))
+
+		val allIds = entryIds(page1) + entryIds(page2) + entryIds(page3)
+		assertEquals(5, allIds.toSet().size, "ids were $allIds")
+		assertEquals(allIds.sortedDescending(), allIds, "ids were $allIds")
+	}
+
+	@Test
+	fun `entries limit must be between 1 and 100`() {
+		val samuel = createAccount("Samuel", "CUSTOMER")
+
+		mockMvc.get("/accounts/$samuel/entries") { param("limit", "0") }
+			.andExpect { status { isBadRequest() } }
+		mockMvc.get("/accounts/$samuel/entries") { param("limit", "101") }
+			.andExpect { status { isBadRequest() } }
+	}
+
+	@Test
+	fun `entries of unknown account returns 404`() {
+		mockMvc.get("/accounts/${UUID.randomUUID()}/entries").andExpect {
+			status { isNotFound() }
+		}
+	}
+
+	@Test
 	fun `concurrent transfers never overdraw a customer`() {
 		val cashIn = createAccount("Cash In", "SYSTEM")
 		val samuel = createAccount("Samuel", "CUSTOMER")
@@ -226,4 +311,13 @@ class TransferApiTest : PostgresIntegrationTest() {
 			.andReturn().response.contentAsString
 		return JsonPath.read<Number>(json, "$.balance").toLong()
 	}
+
+	private fun entriesPage(accountId: String, limit: Int? = null, before: Long? = null): String =
+		mockMvc.get("/accounts/$accountId/entries") {
+			if (limit != null) param("limit", limit.toString())
+			if (before != null) param("before", before.toString())
+		}.andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+	private fun entryIds(pageJson: String): List<Long> =
+		JsonPath.read<List<Number>>(pageJson, "$.entries[*].entryId").map { it.toLong() }
 }
