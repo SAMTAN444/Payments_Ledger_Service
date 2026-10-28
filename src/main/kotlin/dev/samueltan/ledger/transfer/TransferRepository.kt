@@ -17,6 +17,7 @@ class TransferRepository(
 			amount = rs.getLong("amount"),
 			currency = rs.getString("currency"),
 			createdAt = rs.getTimestamp("created_at").toInstant(),
+			reversesTransferId = rs.getObject("reverses_transfer_id", UUID::class.java),
 		)
 	}
 
@@ -27,21 +28,22 @@ class TransferRepository(
 		amount: Long,
 		currency: String,
 		idempotencyKey: String,
+		reversesTransferId: UUID?,
 	): TransferResponse =
 		jdbcTemplate.query(
 			"""
-			INSERT INTO transfers (id, from_account_id, to_account_id, amount, currency, idempotency_key)
-			VALUES (?, ?, ?, ?, ?, ?)
-			RETURNING id, from_account_id, to_account_id, amount, currency, created_at
+			INSERT INTO transfers (id, from_account_id, to_account_id, amount, currency, idempotency_key, reverses_transfer_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			RETURNING id, from_account_id, to_account_id, amount, currency, created_at, reverses_transfer_id
 			""",
 			rowMapper,
-			id, fromAccountId, toAccountId, amount, currency, idempotencyKey,
+			id, fromAccountId, toAccountId, amount, currency, idempotencyKey, reversesTransferId,
 		).single()
 
 	fun findByIdempotencyKey(idempotencyKey: String): TransferResponse? =
 		jdbcTemplate.query(
 			"""
-			SELECT id, from_account_id, to_account_id, amount, currency, created_at
+			SELECT id, from_account_id, to_account_id, amount, currency, created_at, reverses_transfer_id
 			FROM transfers
 			WHERE idempotency_key = ?
 			""",
@@ -52,13 +54,20 @@ class TransferRepository(
 	fun findById(id: UUID): TransferResponse? =
 		jdbcTemplate.query(
 			"""
-			SELECT id, from_account_id, to_account_id, amount, currency, created_at
+			SELECT id, from_account_id, to_account_id, amount, currency, created_at, reverses_transfer_id
 			FROM transfers
 			WHERE id = ?
 			""",
 			rowMapper,
 			id,
 		).firstOrNull()
+
+	fun sumOfReversals(originalId: UUID): Long =
+		jdbcTemplate.queryForObject(
+			"SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE reverses_transfer_id = ?",
+			Long::class.java,
+			originalId,
+		) ?: 0L
 
 	fun insertEntry(transferId: UUID, accountId: UUID, amount: Long) {
 		jdbcTemplate.update(

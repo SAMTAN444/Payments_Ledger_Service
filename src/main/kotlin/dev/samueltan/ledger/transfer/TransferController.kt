@@ -31,4 +31,14 @@ class TransferController(
 	@GetMapping("/{id}")
 	fun get(@PathVariable id: UUID): ResponseEntity<TransferResponse> =
 		ResponseEntity.ok(transferService.get(id))
+
+	@PostMapping("/{id}/reversals")
+	fun reverse(
+		@PathVariable id: UUID,
+		@RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) idempotencyKey: String,
+		@Valid @RequestBody request: ReversalRequest,
+	): ResponseEntity<TransferResponse> {
+		val reversal = transferService.reverse(id, request.amount, idempotencyKey)
+		return ResponseEntity.status(HttpStatus.CREATED).body(reversal)
+	}
 }

@@ -10,4 +10,5 @@ data class TransferResponse(
 	val amount: Long,
 	val currency: String,
 	val createdAt: Instant,
+	val reversesTransferId: UUID?,
 )
