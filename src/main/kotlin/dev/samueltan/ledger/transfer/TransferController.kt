@@ -2,6 +2,7 @@ package dev.samueltan.ledger.transfer
 
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -14,6 +15,9 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
+// "capture:<holdId>" keys are reserved for HoldService. A client using one would block that hold's capture forever.
+private const val NOT_RESERVED_KEY = "^(?!capture:).*"
+
 @RestController
 @RequestMapping("/transfers")
 class TransferController(
@@ -21,7 +25,8 @@ class TransferController(
 ) {
 	@PostMapping
 	fun create(
-		@RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) idempotencyKey: String,
+		@RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255)
+		@Pattern(regexp = NOT_RESERVED_KEY, message = "must not start with capture:") idempotencyKey: String,
 		@Valid @RequestBody request: TransferRequest,
 	): ResponseEntity<TransferResponse> {
 		val transfer = transferService.create(request, idempotencyKey)
@@ -35,7 +40,8 @@ class TransferController(
 	@PostMapping("/{id}/reversals")
 	fun reverse(
 		@PathVariable id: UUID,
-		@RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) idempotencyKey: String,
+		@RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255)
+		@Pattern(regexp = NOT_RESERVED_KEY, message = "must not start with capture:") idempotencyKey: String,
 		@Valid @RequestBody request: ReversalRequest,
 	): ResponseEntity<TransferResponse> {
 		val reversal = transferService.reverse(id, request.amount, idempotencyKey)

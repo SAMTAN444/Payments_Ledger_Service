@@ -6,4 +6,5 @@ data class BalanceResponse(
 	val accountId: UUID,
 	val currency: String,
 	val balance: Long,
+	val available: Long,
 )
