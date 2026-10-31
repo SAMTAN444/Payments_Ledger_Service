@@ -26,6 +26,7 @@ class AccountService(
 			accountId = account.id,
 			currency = account.currency,
 			balance = accountRepository.balanceOf(account.id),
+			available = accountRepository.availableBalanceOf(account.id),
 		)
 	}
 

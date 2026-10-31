@@ -56,7 +56,7 @@ class TransferService(
 		transferRepository.findById(id)
 			?: throw NotFoundException("Transfer $id not found")
 
-	private fun moveMoney(
+	fun moveMoney(
 		fromAccountId: UUID,
 		toAccountId: UUID,
 		amount: Long,
@@ -98,8 +98,8 @@ class TransferService(
 
 		// 5. CUSTOMER accounts can't go below 0. SYSTEM accounts can
 		if (from.kind == "CUSTOMER") {
-			val balance = accountRepository.balanceOf(from.id)
-			if (balance < amount) {
+			val available = accountRepository.availableBalanceOf(from.id)
+			if (available < amount) {
 				throw RuleViolationException("Insufficient funds")
 			}
 		}

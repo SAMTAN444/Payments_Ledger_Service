@@ -73,6 +73,17 @@ class AccountRepository(
 			accountId,
 		) ?: 0L
 
+	fun availableBalanceOf(accountId: UUID): Long =
+		jdbcTemplate.queryForObject(
+			"""
+			SELECT
+				(SELECT COALESCE(SUM(amount), 0) FROM entries WHERE account_id = ?)
+				- (SELECT COALESCE(SUM(amount), 0) FROM holds WHERE from_account_id = ? AND status = 'ACTIVE')
+			""",
+			Long::class.java,
+			accountId, accountId,
+		) ?: 0L
+
 	fun findEntries(accountId: UUID, before: Long?, limit: Int): List<EntryResponse> =
 		jdbcTemplate.query(
 			"""
