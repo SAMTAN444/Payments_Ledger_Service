@@ -3,6 +3,8 @@ package dev.samueltan.ledger.transfer
 import dev.samueltan.ledger.account.AccountRepository
 import dev.samueltan.ledger.common.NotFoundException
 import dev.samueltan.ledger.common.RuleViolationException
+import io.micrometer.core.instrument.MeterRegistry
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -14,7 +16,14 @@ private const val KEY_REUSED_MESSAGE = "Idempotency-Key was already used for a d
 class TransferService(
 	private val transferRepository: TransferRepository,
 	private val accountRepository: AccountRepository,
+	meterRegistry: MeterRegistry,
 ) {
+	private val log = LoggerFactory.getLogger(TransferService::class.java)
+
+	private val createdCounters = listOf("transfer", "reversal", "capture").associateWith { type ->
+		meterRegistry.counter("ledger.transfers.created", "type", type)
+	}
+
 	@Transactional
 	fun create(request: TransferRequest, idempotencyKey: String): TransferResponse =
 		moveMoney(
@@ -42,6 +51,7 @@ class TransferService(
 			currency = original.currency,
 			idempotencyKey = idempotencyKey,
 			reversesTransferId = original.id,
+			type = "reversal",
 			checksAfterLock = {
 				// Runs AFTER the lock, so concurrent refunds see each other's committed reversals.
 				val remaining = original.amount - transferRepository.sumOfReversals(original.id)
@@ -63,6 +73,7 @@ class TransferService(
 		currency: String,
 		idempotencyKey: String,
 		reversesTransferId: UUID? = null,
+		type: String = "transfer",
 		checksAfterLock: () -> Unit = {},
 	): TransferResponse {
 		// 1. Lock and load both accounts (always in id order)
@@ -120,6 +131,12 @@ class TransferService(
 		}
 		transferRepository.insertEntry(transfer.id, from.id, -amount)
 		transferRepository.insertEntry(transfer.id, to.id, amount)
+
+		createdCounters.getValue(type).increment()
+		log.info(
+			"New transfer {} from {} to {} amount={} currency={} type={}",
+			transfer.id, from.id, to.id, amount, currency, type,
+		)
 
 		return transfer
 	}

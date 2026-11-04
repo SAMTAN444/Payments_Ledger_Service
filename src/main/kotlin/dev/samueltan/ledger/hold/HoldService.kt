@@ -6,6 +6,7 @@ import dev.samueltan.ledger.common.RuleViolationException
 import dev.samueltan.ledger.transfer.TransferRepository
 import dev.samueltan.ledger.transfer.TransferResponse
 import dev.samueltan.ledger.transfer.TransferService
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +24,12 @@ class HoldService(
 	private val accountRepository: AccountRepository,
 	private val transferRepository: TransferRepository,
 	private val transferService: TransferService,
+	meterRegistry: MeterRegistry,
 ) {
+	private val holdCounters = listOf("created", "captured", "released").associateWith { outcome ->
+		meterRegistry.counter("ledger.holds", "outcome", outcome)
+	}
+
 	@Transactional
 	fun create(request: HoldRequest, idempotencyKey: String): HoldResponse {
 		// 1. Lock and load both accounts (same lock as transfers, always in id order)
@@ -62,7 +68,7 @@ class HoldService(
 		}
 
 		// 6. All checks passed: save the hold as ACTIVE. No entries: no money moves.
-		return try {
+		val hold = try {
 			holdRepository.insert(
 				id = UUID.randomUUID(),
 				fromAccountId = from.id,
@@ -74,6 +80,8 @@ class HoldService(
 		} catch (e: DuplicateKeyException) {
 			throw RuleViolationException(KEY_REUSED_MESSAGE)
 		}
+		holdCounters.getValue("created").increment()
+		return hold
 	}
 
 	@Transactional
@@ -107,13 +115,16 @@ class HoldService(
 		holdRepository.updateStatus(hold.id, STATUS_CAPTURED)
 
 		// 6. Move the money: an ordinary transfer with two entries
-		return transferService.moveMoney(
+		val transfer = transferService.moveMoney(
 			fromAccountId = hold.fromAccountId,
 			toAccountId = hold.toAccountId,
 			amount = amount,
 			currency = hold.currency,
 			idempotencyKey = captureKey,
+			type = "capture",
 		)
+		holdCounters.getValue("captured").increment()
+		return transfer
 	}
 
 	@Transactional
@@ -125,6 +136,7 @@ class HoldService(
 		return when (hold.status) {
 			STATUS_ACTIVE -> {
 				holdRepository.updateStatus(hold.id, STATUS_RELEASED)
+				holdCounters.getValue("released").increment()
 				hold.copy(status = STATUS_RELEASED)
 			}
 			STATUS_RELEASED -> hold  // a repeat: already released, nothing to do
