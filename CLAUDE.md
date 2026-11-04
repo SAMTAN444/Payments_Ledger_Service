@@ -5,7 +5,8 @@ learning project — the owner writes the business logic themselves.
 
 ## Commands
 
-- `docker compose up -d` — start local Postgres 16 (localhost:5434, ledger/ledger/ledger)
+- `docker compose up --build` — run everything in Docker (app on localhost:8080)
+- `docker compose up -d postgres` — start only local Postgres 16 (localhost:5434, ledger/ledger/ledger)
 - `./gradlew bootRun` — run the app (health: `localhost:8080/actuator/health`)
 - `./gradlew test` — run tests (needs Docker; Testcontainers starts its own Postgres)
 - `./gradlew build` — compile + test + jar; this is what CI runs
@@ -18,4 +19,4 @@ learning project — the owner writes the business logic themselves.
   write the body of `AccountApiTest`. Those are the owner's to write — leave them as TODO
   stubs. Explaining or reviewing them is fine.
 - Integration tests extend `common/PostgresIntegrationTest`.
-- Package by feature: `account/`, `common/`, more features later.
+- Package by feature: `account/`, `transfer/`, `hold/`, `admin/`, `common/`.
