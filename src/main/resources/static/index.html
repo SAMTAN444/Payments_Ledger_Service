@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payments Ledger: a live demo</title>
+<meta name="description" content="Try to break a double-entry payments ledger with retries, races, refunds and holds. Uses fake money and the real API.">
+<style>
+:root {
+	--ink: #0b2545;
+	--muted: #4f6079;
+	--line: #e1e7ef;
+	--wash: #f5f7fb;
+	--bg: #fff;
+	--accent: #5546e8;
+	--accent-dark: #4436c9;
+	--accent-wash: #eeecfd;
+	--ok: #0b7a5b;
+	--ok-wash: #e6f5f0;
+	--no: #b3261e;
+	--no-wash: #fcebea;
+	--code: #0f1f38;
+	--sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; scrollbar-color: #b9c3d1 transparent; scrollbar-width: thin; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.6 var(--sans); -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+::selection { background: var(--accent-wash); color: var(--ink); }
+a { color: var(--accent-dark); text-underline-offset: .2em; text-decoration-thickness: 1px; }
+a:hover { color: var(--ink); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+[tabindex="-1"]:focus { outline: none; }
+svg { display: block; flex: none; }
+[hidden] { display: none !important; }
+
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1240px; margin: 0 auto; padding: 18px 32px; }
+.mark { font-weight: 700; font-size: 1.125rem; letter-spacing: -.01em; }
+.bar nav { display: flex; align-items: center; gap: 24px; font-size: .9375rem; }
+.bar nav a { color: var(--muted); text-decoration: none; }
+.bar nav a:hover { color: var(--ink); }
+.fake { padding: 3px 12px; border-radius: 999px; background: var(--accent-wash); color: var(--accent-dark); font-weight: 600; font-size: .875rem; white-space: nowrap; }
+
+.page { display: grid; grid-template-columns: minmax(0, 1fr) 400px; column-gap: 72px; max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+.hero { grid-column: 1; padding: 72px 0 80px; }
+.story { grid-column: 1; }
+.ledger-wrap { grid-column: 2; grid-row: 1 / span 2; padding: 40px 0 64px; }
+.ledger { position: sticky; top: 24px; }
+
+h1 { margin: 0 0 24px; font-size: clamp(2.5rem, 5.2vw, 4.25rem); line-height: 1.04; letter-spacing: -.035em; font-weight: 700; text-wrap: balance; }
+.lede { margin: 0 0 32px; font-size: clamp(1.125rem, 1.8vw, 1.3125rem); line-height: 1.5; color: var(--muted); max-width: 34em; text-wrap: pretty; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.hero .note { margin: 24px 0 0; font-size: .9375rem; color: var(--muted); }
+
+button { font: inherit; cursor: pointer; }
+.btn { display: inline-flex; text-decoration: none; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--ink); font-weight: 600; font-size: 1rem; transition: background .15s, border-color .15s, color .15s; }
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn:disabled { cursor: not-allowed; background: var(--wash); border-color: var(--line); color: #5f6e83; }
+.btn[aria-busy="true"] { cursor: progress; }
+.btn.large { min-height: 52px; padding: 12px 28px; font-size: 1.0625rem; }
+.link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: none; }
+
+.ledger { padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); box-shadow: 0 18px 40px -18px rgba(11, 37, 69, .28), 0 4px 10px -4px rgba(11, 37, 69, .08); }
+.ledger h2 { margin: 0 0 4px; font-size: 1.125rem; letter-spacing: -.01em; }
+.ledger .sub { margin: 0 0 12px; font-size: .9375rem; color: var(--muted); }
+.acct { display: grid; grid-template-columns: 1fr auto; gap: 0 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+.acct .who { font-weight: 600; }
+.acct .kind { grid-row: 2; font-size: .875rem; color: var(--muted); }
+.acct .amt { grid-column: 2; grid-row: 1; justify-self: end; font-size: 1.5rem; line-height: 1.25; font-weight: 700; letter-spacing: -.02em; }
+.acct .avail { grid-column: 2; grid-row: 2; justify-self: end; font-size: .875rem; color: var(--muted); }
+.acct .avail.held { color: var(--accent-dark); font-weight: 600; }
+.acct .amt.waiting { align-self: center; font-size: .9375rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.recon { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .9375rem; }
+.recon strong { display: block; }
+.recon span { color: var(--muted); }
+.recon.ok svg { color: var(--ok); }
+.recon.bad svg { color: var(--no); }
+.recon ul { margin: 6px 0 0; padding-left: 18px; color: var(--no); word-break: break-word; }
+
+.step { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 20px; padding: 56px 0; border-top: 1px solid var(--line); }
+.num { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--wash); color: var(--ink); font-weight: 700; }
+.step.done .num { background: var(--ok); color: #fff; }
+.step h2 { margin: 2px 0 12px; font-size: clamp(1.625rem, 3vw, 2.125rem); line-height: 1.15; letter-spacing: -.025em; text-wrap: balance; }
+.step p { margin: 0 0 20px; max-width: 65ch; text-wrap: pretty; }
+.step p.locked { margin: 12px 0 0; font-size: .9375rem; color: var(--muted); }
+
+.result { margin-top: 20px; padding: 16px 18px; border-radius: 10px; background: var(--wash); max-width: 65ch; }
+.result:empty { display: none; }
+.line { display: flex; gap: 10px; align-items: flex-start; }
+.line + .line { margin-top: 12px; }
+.line svg { margin-top: 3px; }
+.line.ok svg { color: var(--ok); }
+.line.no svg { color: var(--no); }
+.line.fail svg { color: var(--no); }
+.line b { font-weight: 650; }
+.ref { font-family: var(--mono); font-size: .9em; }
+
+.race { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; margin-top: 24px; max-width: 560px; }
+.cell { display: grid; place-items: center; aspect-ratio: 1; border-radius: 8px; border: 1px dashed #c4cedb; color: var(--muted); }
+.cell.ok { border: 0; background: var(--ok); color: #fff; animation: land .45s cubic-bezier(.16, 1, .3, 1); }
+.cell.no { border: 0; background: var(--no-wash); color: var(--no); animation: land .45s cubic-bezier(.16, 1, .3, 1); }
+@keyframes land { from { transform: scale(.72); opacity: .35; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 12px; font-size: .9375rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .a { color: var(--ok); }
+.legend .b { color: var(--no); }
+
+details { margin-top: 16px; max-width: 72ch; }
+summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; color: var(--accent-dark); font-weight: 600; font-size: .9375rem; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary svg { transition: transform .15s; }
+details[open] summary svg { transform: rotate(90deg); }
+.log { display: grid; gap: 12px; }
+.req { margin: 0; padding: 14px 16px; border-radius: 10px; background: var(--code); color: #dbe5f4; font: 400 .8125rem/1.55 var(--mono); overflow-x: auto; white-space: pre; scrollbar-color: #4c5f7c transparent; }
+.req::selection, .req *::selection { background: #3d4f6e; color: #fff; }
+.aside { margin: 0 0 12px; font-size: .9375rem; color: var(--muted); }
+
+.history { width: 100%; max-width: 640px; margin-top: 20px; border-collapse: collapse; font-size: .9375rem; }
+.history th { padding: 8px 12px 8px 0; text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); }
+.history td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); }
+.history .m { padding-right: 0; text-align: right; font-weight: 600; }
+.history .plus { color: var(--ok); }
+
+.end { padding: 64px 0 96px; border-top: 1px solid var(--line); }
+.end h2 { margin: 0 0 12px; font-size: clamp(1.625rem, 3vw, 2.125rem); line-height: 1.15; letter-spacing: -.025em; }
+.end p { margin: 0 0 24px; max-width: 60ch; }
+.foot { border-top: 1px solid var(--line); color: var(--muted); font-size: .9375rem; }
+.foot p { max-width: 1240px; margin: 0 auto; padding: 24px 32px; }
+
+@media (max-width: 960px) {
+	html { scroll-padding-top: 148px; }
+	.bar { padding: 14px 20px; }
+	.bar nav a { display: none; }
+	.page { display: block; padding: 0 20px; }
+	.hero { padding: 32px 0 40px; }
+	.ledger-wrap { position: sticky; top: 0; z-index: 2; margin: 0 -20px; padding: 0; background: var(--bg); }
+	.ledger { position: static; padding: 10px 20px 12px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: 0 8px 16px -14px rgba(11, 37, 69, .5); }
+	.ledger h2, .ledger .sub { display: none; }
+	.accts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+	.acct { display: block; padding: 0; border: 0; }
+	.acct .who { display: block; font-size: .8125rem; color: var(--muted); }
+	.acct .kind { display: none; }
+	.acct .amt { display: block; justify-self: start; font-size: clamp(.875rem, 4.2vw, 1.0625rem); }
+	.acct .amt.waiting { font-size: .875rem; }
+	.acct .avail { display: block; justify-self: start; font-size: .75rem; line-height: 1.3; }
+	.recon { margin-top: 8px; padding-top: 8px; font-size: .8125rem; align-items: center; }
+	.recon span { display: none; }
+	.recon strong { font-weight: 600; }
+	.step { grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; padding: 40px 0; }
+	.num { width: 32px; height: 32px; font-size: .9375rem; }
+	.race { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 340px; }
+	.history .hide { display: none; }
+	.foot p { padding: 20px; }
+	.end { padding: 48px 0 64px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	html { scroll-behavior: auto; }
+	.cell.ok, .cell.no { animation: none; }
+	.btn, summary svg { transition: none; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+	<span class="mark">Payments Ledger</span>
+	<nav aria-label="Project links">
+		<a href="/swagger-ui/index.html">API docs</a>
+		<a href="https://github.com/SAMTAN444/Payments_Ledger_Service">Source code</a>
+		<span class="fake">Fake money</span>
+	</nav>
+</header>
+
+<div class="page">
+	<section class="hero" aria-labelledby="title">
+		<h1 id="title">A payments ledger that keeps money correct when requests go wrong.</h1>
+		<p class="lede">Networks drop, people double-tap, and payments collide. Cause each of those yourself, and watch the real API hold up.</p>
+		<div class="actions">
+			<button class="btn primary large" id="start" type="button">Start the demo</button>
+			<a class="link" href="/swagger-ui/index.html">Open the API docs</a>
+		</div>
+		<p class="note">Every figure on this page comes from a live API response.</p>
+	</section>
+
+	<div class="ledger-wrap">
+		<aside class="ledger" aria-label="Live ledger">
+			<h2>Live ledger</h2>
+			<p class="sub">Balances from the API, after every action.</p>
+			<div class="accts" id="accts"></div>
+			<div class="recon" id="recon"><div><strong>Checking the ledger</strong></div></div>
+		</aside>
+	</div>
+
+	<main class="story">
+		<section class="step" id="s1" aria-labelledby="h1s">
+			<div class="num" aria-hidden="true">1</div>
+			<div>
+				<h2 id="h1s" tabindex="-1">Open three accounts</h2>
+				<p>Samuel and Alice are customers. Cash In is a system account, where outside money enters the ledger. It can go negative: that figure records how much has come in. Samuel starts with SGD 100.00 from it.</p>
+				<button class="btn primary" id="b-setup" type="button">Open the accounts</button>
+				<div class="result" id="r1" role="status"></div>
+				<details id="d1" hidden><summary>See the requests</summary><div class="log"></div></details>
+			</div>
+		</section>
+
+		<section class="step" id="s2" aria-labelledby="h2s">
+			<div class="num" aria-hidden="true">2</div>
+			<div>
+				<h2 id="h2s" tabindex="-1">Send the same payment twice</h2>
+				<p>Your phone loses signal mid-payment, so the app sends it again. Without protection, Alice gets paid twice. Each payment here carries a unique key, and a key can only ever move money once.</p>
+				<div class="actions">
+					<button class="btn primary" id="b-pay" type="button">Pay Alice SGD 10.00</button>
+					<button class="btn" id="b-retry" type="button">Send it again with the same key</button>
+				</div>
+				<p class="locked" data-needs="setup">Open the accounts first.</p>
+				<div class="result" id="r2" role="status"></div>
+				<details id="d2" hidden><summary>See the requests</summary><div class="log"></div></details>
+			</div>
+		</section>
+
+		<section class="step" id="s3" aria-labelledby="h3s">
+			<div class="num" aria-hidden="true">3</div>
+			<div>
+				<h2 id="h3s" tabindex="-1">Fire 20 payments at once</h2>
+				<p>Twenty SGD 10.00 payments from Samuel hit the ledger together. If each one simply checked the balance and then paid, several could spend the same money. Here, each payment locks both accounts first, so they take turns.</p>
+				<button class="btn primary" id="b-race" type="button">Send 20 payments</button>
+				<p class="locked" data-needs="paid">Send the payment above first.</p>
+				<div class="race" id="race" aria-hidden="true"></div>
+				<div class="legend" aria-hidden="true">
+					<span class="a"><svg width="16" height="16"><use href="#i-check"/></svg>Paid</span>
+					<span class="b"><svg width="16" height="16"><use href="#i-x"/></svg>Refused, not enough money</span>
+				</div>
+				<div class="result" id="r3" role="status"></div>
+				<details id="d3" hidden>
+					<summary>See the requests</summary>
+					<p class="aside">Browsers open only a few connections to one server at a time, so these arrive in overlapping batches. The project's automated test fires them from 20 threads at once.</p>
+					<div class="log"></div>
+				</details>
+			</div>
+		</section>
+
+		<section class="step" id="s4" aria-labelledby="h4s">
+			<div class="num" aria-hidden="true">4</div>
+			<div>
+				<h2 id="h4s" tabindex="-1">Refund part of a payment</h2>
+				<p>A refund never edits history. It's a new payment going the other way that points back at the original. Refund SGD 4.00 of Samuel's first SGD 10.00 payment, then try to take back more than is left.</p>
+				<div class="actions">
+					<button class="btn primary" id="b-refund" type="button">Refund SGD 4.00</button>
+					<button class="btn" id="b-overrefund" type="button">Try refunding SGD 7.00</button>
+				</div>
+				<p class="locked" data-needs="raced">Send the 20 payments first.</p>
+				<div class="result" id="r4" role="status"></div>
+				<details id="d4" hidden><summary>See the requests</summary><div class="log"></div></details>
+			</div>
+		</section>
+
+		<section class="step" id="s5" aria-labelledby="h5s">
+			<div class="num" aria-hidden="true">5</div>
+			<div>
+				<h2 id="h5s" tabindex="-1">Reserve money with a hold</h2>
+				<p>A hotel reserves money on your card without taking it. Samuel's balance stays the same, but the amount available to spend drops. This step first adds SGD 50.00 from Cash In.</p>
+				<div class="actions">
+					<button class="btn primary" id="b-hold" type="button">Hold SGD 30.00 for Alice</button>
+					<button class="btn" id="b-spend" type="button">Try spending SGD 40.00</button>
+					<button class="btn" id="b-capture" type="button">Take SGD 20.00 of the hold</button>
+					<button class="btn" id="b-release" type="button">Release the hold</button>
+				</div>
+				<p class="locked" data-needs="refunded">Refund the payment first.</p>
+				<div class="result" id="r5" role="status"></div>
+				<details id="d5" hidden><summary>See the requests</summary><div class="log"></div></details>
+			</div>
+		</section>
+
+		<section class="step" id="s6" aria-labelledby="h6s">
+			<div class="num" aria-hidden="true">6</div>
+			<div>
+				<h2 id="h6s" tabindex="-1">Read Samuel's history</h2>
+				<p>Every line is a permanent entry: minus on the account money left, plus on the account it reached. Balances are always added up from these rows. Newest first.</p>
+				<div class="actions">
+					<button class="btn primary" id="b-history" type="button">Show the history</button>
+					<button class="btn" id="b-more" type="button" hidden>Load more</button>
+				</div>
+				<p class="locked" data-needs="setup">Open the accounts first.</p>
+				<table class="history" id="history" hidden>
+					<thead><tr><th scope="col">With</th><th scope="col" class="hide">Entry</th><th scope="col">When</th><th scope="col" class="m">Amount</th></tr></thead>
+					<tbody></tbody>
+				</table>
+				<div class="result" id="r6" role="status"></div>
+				<details id="d6" hidden><summary>See the requests</summary><div class="log"></div></details>
+			</div>
+		</section>
+
+		<section class="end" aria-labelledby="endh">
+			<h2 id="endh">The ledger checked itself the whole way through</h2>
+			<p>After every step, the reconciliation check compared the actual database rows against the ledger's five rules. Read how it all works in the source code, or try the endpoints yourself.</p>
+			<div class="actions">
+				<a class="btn primary" href="https://github.com/SAMTAN444/Payments_Ledger_Service">Read the source code</a>
+				<a class="btn" href="/swagger-ui/index.html">Open the API docs</a>
+				<button class="btn" id="b-reset" type="button">Start over</button>
+			</div>
+		</section>
+	</main>
+</div>
+
+<footer class="foot">
+	<p>A learning project by Samuel Tan. There's no login, so anyone with this link can move this fake money.</p>
+</footer>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+	<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+	<symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+	<symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 3v6.2M8 12.6v.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+</svg>
+
+<script>
+"use strict";
+const CURRENCY = "SGD";
+const $ = (id) => document.getElementById(id);
+const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `key-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const money = (cents) => `${cents < 0 ? "-" : ""}${CURRENCY} ${(Math.abs(cents) / 100).toFixed(2)}`;
+const short = (id) => String(id).slice(0, 8);
+
+let state;
+const fresh = () => ({
+	accounts: {}, setup: false, paid: false, retried: false, raced: false, refunded: false, overRefunded: false,
+	spent: false, captured: false, released: false, payment: null, key: null, firstId: null, hold: null, cursor: null, shown: false,
+});
+
+function icon(name, size = 16) {
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("width", size);
+	svg.setAttribute("height", size);
+	svg.setAttribute("aria-hidden", "true");
+	const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+	use.setAttribute("href", `#i-${name}`);
+	svg.append(use);
+	return svg;
+}
+
+// Every API call goes through here, so each step can show its real requests and responses.
+async function api(method, path, { body, key } = {}) {
+	const headers = {};
+	if (body !== undefined) headers["Content-Type"] = "application/json";
+	if (key) headers["Idempotency-Key"] = key;
+	const response = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+	const text = await response.text();
+	let data = null;
+	try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+	return { method, path, key, requestBody: body, status: response.status, data, ok: response.ok };
+}
+
+function problem(res) {
+	if (res.data && res.data.detail) return res.data.detail;
+	if (res.status === 404) return "That wasn't found.";
+	if (res.status >= 500) return "The server hit an error. Try again in a moment.";
+	return "The API rejected this request as invalid.";
+}
+
+function logCall(step, res) {
+	const details = $(`d${step}`);
+	details.hidden = false;
+	const lines = [`${res.method} ${res.path}`];
+	if (res.key) lines.push(`Idempotency-Key: ${res.key}`);
+	if (res.requestBody !== undefined) lines.push(JSON.stringify(res.requestBody, null, 2));
+	lines.push("", `HTTP ${res.status}`);
+	if (res.data !== null) lines.push(JSON.stringify(res.data, null, 2));
+	const pre = document.createElement("pre");
+	pre.className = "req";
+	pre.tabIndex = 0;
+	pre.textContent = lines.join("\n");
+	details.querySelector(".log").append(pre);
+}
+
+function say(step, kind, ...parts) {
+	const line = document.createElement("div");
+	line.className = `line ${kind}`;
+	line.append(icon(kind === "ok" ? "check" : kind === "no" ? "x" : "alert"));
+	const text = document.createElement("div");
+	parts.forEach((part) => {
+		if (part && part.ref) {
+			const code = document.createElement("span");
+			code.className = "ref";
+			code.textContent = part.ref;
+			text.append(code);
+		} else if (part && part.b) {
+			const strong = document.createElement("b");
+			strong.textContent = part.b;
+			text.append(strong);
+		} else {
+			text.append(String(part));
+		}
+	});
+	line.append(text);
+	$(`r${step}`).append(line);
+}
+
+// Runs one button's work: blocks other clicks meanwhile, and turns a dropped connection into a message.
+async function run(button, step, work) {
+	document.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+	button.setAttribute("aria-busy", "true");
+	try {
+		await work();
+	} catch (error) {
+		say(step, "fail", { b: "Couldn't reach the API." }, " Check that the server is running, then try again.");
+	}
+	await refresh();
+	button.removeAttribute("aria-busy");
+	render();
+}
+
+const ACCOUNTS = [["Samuel", "Customer"], ["Alice", "Customer"], ["Cash In", "System account"]];
+
+function acctRow(label, kind, balance) {
+	const row = document.createElement("div");
+	row.className = "acct";
+	const who = document.createElement("span");
+	who.className = "who";
+	who.textContent = label;
+	const type = document.createElement("span");
+	type.className = "kind";
+	type.textContent = kind;
+	const amt = document.createElement("span");
+	amt.className = balance ? "amt" : "amt waiting";
+	amt.textContent = balance ? money(balance.balance) : "Not opened";
+	row.append(who, type, amt);
+	if (balance && balance.available !== balance.balance) {
+		const avail = document.createElement("span");
+		avail.className = "avail held";
+		avail.textContent = `Available ${money(balance.available)}`;
+		row.append(avail);
+	}
+	return row;
+}
+
+async function refresh() {
+	try {
+		const balances = await Promise.all(ACCOUNTS.map(async ([name]) => {
+			const account = state.accounts[name];
+			return account ? (await api("GET", `/accounts/${account.id}/balance`)).data : null;
+		}));
+		$("accts").replaceChildren(...ACCOUNTS.map(([name, kind], i) => acctRow(name, kind, balances[i])));
+		const recon = await api("GET", "/admin/reconciliation");
+		showRecon(recon.data);
+	} catch (error) {
+		showRecon(null);
+	}
+}
+
+function showRecon(report) {
+	const box = $("recon");
+	const copy = document.createElement("div");
+	const title = document.createElement("strong");
+	const healthy = report && report.ok;
+	box.className = `recon ${healthy ? "ok" : "bad"}`;
+	if (!report) {
+		title.textContent = "Can't reach the API";
+		copy.append(title);
+	} else if (healthy) {
+		title.textContent = "Reconciliation passed";
+		const sub = document.createElement("span");
+		sub.textContent = "All five ledger rules hold in the database.";
+		copy.append(title, sub);
+	} else {
+		title.textContent = "Reconciliation found problems";
+		const list = document.createElement("ul");
+		report.problems.forEach((text) => {
+			const item = document.createElement("li");
+			item.textContent = text;
+			list.append(item);
+		});
+		copy.append(title, list);
+	}
+	box.replaceChildren(icon(healthy ? "check" : "alert", 18), copy);
+}
+
+function render() {
+	const s = state;
+	const set = (id, enabled) => { $(id).disabled = !enabled; };
+	set("b-setup", !s.setup);
+	set("b-pay", s.setup && !s.paid);
+	set("b-retry", s.paid && !s.retried);
+	set("b-race", s.paid && !s.raced);
+	set("b-refund", s.raced && !s.refunded);
+	set("b-overrefund", s.refunded && !s.overRefunded);
+	set("b-hold", s.refunded && !s.hold);
+	set("b-spend", Boolean(s.hold) && !s.spent);
+	set("b-capture", Boolean(s.hold) && !s.captured);
+	set("b-release", Boolean(s.hold) && !s.released);
+	set("b-history", s.setup);
+	set("b-more", Boolean(s.cursor));
+	set("b-reset", true);
+	$("b-history").textContent = s.shown ? "Refresh the history" : "Show the history";
+	$("b-more").hidden = !s.shown || !s.cursor;
+	$("start").disabled = s.setup;
+	$("start").textContent = s.setup ? "Demo started" : "Start the demo";
+
+	const flags = { setup: s.setup, paid: s.paid, raced: s.raced, refunded: s.refunded };
+	document.querySelectorAll("[data-needs]").forEach((hint) => { hint.hidden = Boolean(flags[hint.dataset.needs]); });
+
+	const done = { s1: s.setup, s2: s.retried, s3: s.raced, s4: s.overRefunded, s5: s.captured || s.released, s6: s.shown };
+	Object.entries(done).forEach(([id, isDone]) => {
+		const section = $(id);
+		const num = section.querySelector(".num");
+		section.classList.toggle("done", Boolean(isDone));
+		if (isDone) num.replaceChildren(icon("check", 18));
+		else num.textContent = id.slice(1);
+	});
+}
+
+function emptyRace() {
+	const cells = Array.from({ length: 20 }, () => {
+		const cell = document.createElement("div");
+		cell.className = "cell";
+		return cell;
+	});
+	$("race").replaceChildren(...cells);
+}
+
+const pay = (fromName, toName, amount, key = newKey()) => api("POST", "/transfers", {
+	key,
+	body: { fromAccountId: state.accounts[fromName].id, toAccountId: state.accounts[toName].id, amount, currency: CURRENCY },
+});
+
+async function setup() {
+	const open = async (name, kind) => {
+		const res = await api("POST", "/accounts", { body: { ownerName: name, currency: CURRENCY, kind } });
+		logCall(1, res);
+		if (!res.ok) {
+			say(1, "fail", problem(res));
+			return false;
+		}
+		state.accounts[name] = { id: res.data.id };
+		return true;
+	};
+	const opened = await open("Samuel", "CUSTOMER") && await open("Alice", "CUSTOMER") && await open("Cash In", "SYSTEM");
+	if (!opened) return;
+	const fund = await pay("Cash In", "Samuel", 10000);
+	logCall(1, fund);
+	if (!fund.ok) {
+		say(1, "fail", problem(fund));
+		return;
+	}
+	state.setup = true;
+	say(1, "ok", { b: "Three accounts opened." }, " Samuel has SGD 100.00, and Cash In shows -SGD 100.00. Money moved; none was created.");
+}
+
+$("b-setup").addEventListener("click", (e) => run(e.currentTarget, 1, setup));
+
+$("start").addEventListener("click", async (e) => {
+	await run(e.currentTarget, 1, setup);
+	if (!state.setup) return;
+	$("s2").scrollIntoView();
+	$("h2s").focus({ preventScroll: true });
+});
+
+$("b-pay").addEventListener("click", (e) => run(e.currentTarget, 2, async () => {
+	state.key = newKey();
+	const res = await pay("Samuel", "Alice", 1000, state.key);
+	logCall(2, res);
+	if (!res.ok) { say(2, "fail", problem(res)); return; }
+	state.paid = true;
+	state.payment = res.data;
+	state.firstId = res.data.id;
+	say(2, "ok", { b: "Paid." }, " Transfer ", { ref: short(res.data.id) }, " moved SGD 10.00 to Alice. Now pretend the reply got lost, and send it again.");
+}));
+
+$("b-retry").addEventListener("click", (e) => run(e.currentTarget, 2, async () => {
+	const res = await pay("Samuel", "Alice", 1000, state.key);
+	logCall(2, res);
+	if (!res.ok) { say(2, "fail", problem(res)); return; }
+	state.retried = true;
+	const same = res.data.id === state.firstId;
+	say(2, same ? "ok" : "fail", { b: same ? "Same transfer returned." : "A different transfer came back." },
+		" The API answered with ", { ref: short(res.data.id) }, " again and moved no new money. Samuel was charged once.");
+}));
+
+$("b-race").addEventListener("click", (e) => run(e.currentTarget, 3, async () => {
+	emptyRace();
+	const cells = [...$("race").children];
+	let landed = 0;
+	const results = await Promise.all(Array.from({ length: 20 }, async () => {
+		const res = await pay("Samuel", "Alice", 1000);
+		const cell = cells[landed++];
+		cell.classList.add(res.status === 201 ? "ok" : "no");
+		cell.replaceChildren(icon(res.status === 201 ? "check" : "x"));
+		return res;
+	}));
+	const paid = results.filter((r) => r.status === 201);
+	const refused = results.filter((r) => r.status === 422);
+	const other = results.length - paid.length - refused.length;
+	if (paid[0]) logCall(3, paid[0]);
+	if (refused[0]) logCall(3, refused[0]);
+	state.raced = true;
+	const after = await api("GET", `/accounts/${state.accounts.Samuel.id}/balance`);
+	logCall(3, after);
+	say(3, "ok", { b: `${paid.length} paid, ${refused.length} refused.` }, ` Samuel's balance is ${money(after.data.balance)}: every cent was spent once, and it never went below zero.`);
+	if (other) say(3, "fail", `${other} requests failed with an unexpected status.`);
+}));
+
+$("b-refund").addEventListener("click", (e) => run(e.currentTarget, 4, async () => {
+	const res = await api("POST", `/transfers/${state.payment.id}/reversals`, { key: newKey(), body: { amount: 400 } });
+	logCall(4, res);
+	if (!res.ok) { say(4, "fail", problem(res)); return; }
+	state.refunded = true;
+	say(4, "ok", { b: "Refunded." }, " New transfer ", { ref: short(res.data.id) }, " points back at ", { ref: short(state.payment.id) }, ". The original is untouched. SGD 6.00 is left to refund.");
+}));
+
+$("b-overrefund").addEventListener("click", (e) => run(e.currentTarget, 4, async () => {
+	const res = await api("POST", `/transfers/${state.payment.id}/reversals`, { key: newKey(), body: { amount: 700 } });
+	logCall(4, res);
+	state.overRefunded = true;
+	if (res.status === 422) say(4, "no", { b: "Refused, and no money moved." }, ` The API said: "${problem(res)}"`);
+	else say(4, "fail", `Expected a refusal, but got HTTP ${res.status}.`);
+}));
+
+$("b-hold").addEventListener("click", (e) => run(e.currentTarget, 5, async () => {
+	const topUp = await pay("Cash In", "Samuel", 5000);
+	logCall(5, topUp);
+	if (!topUp.ok) { say(5, "fail", problem(topUp)); return; }
+	const res = await api("POST", "/holds", {
+		key: newKey(),
+		body: { fromAccountId: state.accounts.Samuel.id, toAccountId: state.accounts.Alice.id, amount: 3000, currency: CURRENCY },
+	});
+	logCall(5, res);
+	if (!res.ok) { say(5, "fail", problem(res)); return; }
+	state.hold = res.data;
+	const after = await api("GET", `/accounts/${state.accounts.Samuel.id}/balance`);
+	say(5, "ok", { b: "Held." }, ` Samuel's balance is still ${money(after.data.balance)}, but only ${money(after.data.available)} is available to spend.`);
+}));
+
+$("b-spend").addEventListener("click", (e) => run(e.currentTarget, 5, async () => {
+	const res = await pay("Samuel", "Alice", 4000);
+	logCall(5, res);
+	state.spent = true;
+	if (res.status === 422) say(5, "no", { b: "Refused." }, " The balance covers SGD 40.00, but SGD 30.00 of it is promised to the hold.");
+	else say(5, "fail", `Expected a refusal, but got HTTP ${res.status}.`);
+}));
+
+async function endHold(step, res, doneText) {
+	logCall(step, res);
+	if (res.ok) say(step, "ok", { b: doneText[0] }, doneText[1]);
+	else if (res.status === 422) say(step, "no", { b: "Refused." }, ` The API said: "${problem(res)}". A hold can only end once.`);
+	else say(step, "fail", problem(res));
+}
+
+$("b-capture").addEventListener("click", (e) => run(e.currentTarget, 5, async () => {
+	const res = await api("POST", `/holds/${state.hold.id}/capture`, { body: { amount: 2000 } });
+	state.captured = true;
+	await endHold(5, res, ["Captured.", " Alice received SGD 20.00. The other SGD 10.00 was freed, because the hold has ended."]);
+}));
+
+$("b-release").addEventListener("click", (e) => run(e.currentTarget, 5, async () => {
+	const res = await api("POST", `/holds/${state.hold.id}/release`);
+	state.released = true;
+	await endHold(5, res, ["Released.", " The reserved money is available to Samuel again, and nothing moved."]);
+}));
+
+function nameOf(id) {
+	const match = Object.entries(state.accounts).find(([, account]) => account.id === id);
+	return match ? match[0] : short(id);
+}
+
+async function loadHistory(step) {
+	const before = state.cursor ? `&before=${state.cursor}` : "";
+	const res = await api("GET", `/accounts/${state.accounts.Samuel.id}/entries?limit=5${before}`);
+	logCall(step, res);
+	if (!res.ok) { say(step, "fail", problem(res)); return; }
+	const body = $("history").tBodies[0];
+	res.data.entries.forEach((entry) => {
+		const row = body.insertRow();
+		row.insertCell().textContent = nameOf(entry.counterpartyAccountId);
+		const ref = row.insertCell();
+		ref.className = "hide ref";
+		ref.textContent = entry.entryId;
+		row.insertCell().textContent = new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+		const amount = row.insertCell();
+		amount.className = entry.amount > 0 ? "m plus" : "m";
+		amount.textContent = `${entry.amount > 0 ? "+" : ""}${money(entry.amount)}`;
+	});
+	$("history").hidden = false;
+	state.shown = true;
+	state.cursor = res.data.nextCursor;
+	$("r6").replaceChildren();
+	if (!state.cursor) say(step, "ok", "That's Samuel's full history so far.");
+}
+
+$("b-history").addEventListener("click", (e) => run(e.currentTarget, 6, () => {
+	state.cursor = null;
+	$("history").tBodies[0].replaceChildren();
+	return loadHistory(6);
+}));
+$("b-more").addEventListener("click", (e) => run(e.currentTarget, 6, () => loadHistory(6)));
+
+function reset() {
+	state = fresh();
+	for (let i = 1; i <= 6; i++) {
+		$(`r${i}`).replaceChildren();
+		$(`d${i}`).hidden = true;
+		$(`d${i}`).open = false;
+		$(`d${i}`).querySelector(".log").replaceChildren();
+	}
+	$("history").hidden = true;
+	$("history").tBodies[0].replaceChildren();
+	emptyRace();
+}
+
+$("b-reset").addEventListener("click", async () => {
+	reset();
+	await refresh();
+	render();
+	window.scrollTo({ top: 0 });
+	$("title").setAttribute("tabindex", "-1");
+	$("title").focus({ preventScroll: true });
+});
+
+reset();
+render();
+refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-05T02:42:50.683141+00:00",
+  "title": "Design System: Payments Ledger",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Signal Violet",
+        "canonical": "#5546e8",
+        "tonalRamp": [
+          "#16133a",
+          "#231b6c",
+          "#2b1ea3",
+          "#2e1cdf",
+          "#6255e0",
+          "#958de3",
+          "#c3bfeb",
+          "#eeedf8"
+        ]
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "Deep Violet",
+        "canonical": "#4436c9",
+        "tonalRamp": [
+          "#1b1835",
+          "#2b2661",
+          "#393091",
+          "#4336c6",
+          "#7167ce",
+          "#9e98d8",
+          "#c8c5e5",
+          "#efeef6"
+        ]
+      },
+      "accent-wash": {
+        "role": "primary",
+        "displayName": "Violet Wash",
+        "canonical": "#eeecfd",
+        "tonalRamp": [
+          "#17123a",
+          "#241a6d",
+          "#2c1ca5",
+          "#3019e3",
+          "#6352e3",
+          "#968be5",
+          "#c4bfec",
+          "#eeedf8"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ledger Navy",
+        "canonical": "#0b2545",
+        "tonalRamp": [
+          "#142438",
+          "#1e4069",
+          "#235a9e",
+          "#2374d8",
+          "#5a94dc",
+          "#90b4e0",
+          "#c1d3e9",
+          "#edf2f7"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "#4f6079",
+        "tonalRamp": [
+          "#21252b",
+          "#39414e",
+          "#4f5d72",
+          "#637998",
+          "#8897ae",
+          "#acb6c4",
+          "#cfd4db",
+          "#f1f2f4"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e1e7ef",
+        "tonalRamp": [
+          "#1f252e",
+          "#344153",
+          "#475d7a",
+          "#5878a4",
+          "#8097b6",
+          "#a7b6c9",
+          "#cdd4de",
+          "#f0f2f4"
+        ]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Quiet Wash",
+        "canonical": "#f5f7fb",
+        "tonalRamp": [
+          "#1c2331",
+          "#2d3c59",
+          "#3c5485",
+          "#486cb3",
+          "#748ec1",
+          "#a0b0d0",
+          "#c9d1e1",
+          "#eff1f5"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "paid": {
+        "role": "semantic",
+        "displayName": "Paid Green",
+        "canonical": "#0b7a5b",
+        "tonalRamp": [
+          "#123b2f",
+          "#186e56",
+          "#1aa780",
+          "#16e6ac",
+          "#50e5bc",
+          "#8ae6cc",
+          "#beecdf",
+          "#ecf8f5"
+        ]
+      },
+      "refused": {
+        "role": "semantic",
+        "displayName": "Refused Red",
+        "canonical": "#b3261e",
+        "tonalRamp": [
+          "#381615",
+          "#68231f",
+          "#9d2b24",
+          "#d72e25",
+          "#db625b",
+          "#df9591",
+          "#e9c3c1",
+          "#f7eeed"
+        ]
+      },
+      "refused-wash": {
+        "role": "semantic",
+        "displayName": "Refused Wash",
+        "canonical": "#fcebea",
+        "tonalRamp": [
+          "#391614",
+          "#6a211d",
+          "#a02821",
+          "#db2a20",
+          "#de5f58",
+          "#e1938e",
+          "#eac3c0",
+          "#f8eeed"
+        ]
+      },
+      "code-ground": {
+        "role": "neutral",
+        "displayName": "Code Ground",
+        "canonical": "#0f1f38",
+        "tonalRamp": [
+          "#182335",
+          "#263d61",
+          "#305692",
+          "#366ec6",
+          "#678fce",
+          "#98b1d8",
+          "#c5d2e5",
+          "#eef1f6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The one page headline."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Step and closing headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanations, held to 65ch."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Real request and response data only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ledger-lift",
+        "value": "0 18px 40px -18px rgba(11, 37, 69, .28), 0 4px 10px -4px rgba(11, 37, 69, .08)",
+        "purpose": "The ledger card only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "land",
+        "value": "450ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Race cells landing; the page's one authored motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact",
+        "value": "960px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action in a step.",
+      "html": "<button class=\"ds-btn-primary\">Send 20 payments</button>",
+      "css": ".ds-btn-primary { min-height: 44px; padding: 9px 20px; border: 1px solid #5546e8; border-radius: 999px; background: #5546e8; color: #fff; font-weight: 600; transition: background .15s; } .ds-btn-primary:hover { background: #4436c9; } .ds-btn-primary:focus-visible { outline: 3px solid #5546e8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A follow-up action in a step.",
+      "html": "<button class=\"ds-btn-secondary\">Try refunding SGD 7.00</button>",
+      "css": ".ds-btn-secondary { min-height: 44px; padding: 9px 20px; border: 1px solid #e1e7ef; border-radius: 999px; background: #fff; color: #0b2545; font-weight: 600; transition: border-color .15s; } .ds-btn-secondary:hover { border-color: #0b2545; } .ds-btn-secondary:focus-visible { outline: 3px solid #5546e8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Note Pill",
+      "kind": "chip",
+      "refersTo": "note-pill",
+      "description": "The always-visible fake-money note.",
+      "html": "<span class=\"ds-pill\">Fake money</span>",
+      "css": ".ds-pill { padding: 3px 12px; border-radius: 999px; background: #eeecfd; color: #4436c9; font-weight: 600; font-size: .875rem; }"
+    },
+    {
+      "name": "Result Block",
+      "kind": "custom",
+      "description": "States what happened, starting with a bold verdict.",
+      "html": "<div class=\"ds-result\"><b>Refused, and no money moved.</b> The API said: \"Reversal exceeds the remaining amount\"</div>",
+      "css": ".ds-result { padding: 16px 18px; border-radius: 10px; background: #f5f7fb; color: #0b2545; max-width: 65ch; }"
+    },
+    {
+      "name": "Ledger Row",
+      "kind": "card",
+      "description": "One account inside the pinned live ledger.",
+      "html": "<div class=\"ds-acct\"><span><b>Samuel</b><br><small>Customer</small></span><span class=\"ds-amt\">SGD 54.00<br><small>Available SGD 24.00</small></span></div>",
+      "css": ".ds-acct { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid #e1e7ef; color: #0b2545; font-variant-numeric: tabular-nums; } .ds-amt { text-align: right; font-size: 1.5rem; font-weight: 700; } .ds-acct small { font-size: .875rem; font-weight: 400; color: #4f6079; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Working Proof",
+    "overview": "A payments page in the familiar fintech style, played straight, at a standard meant to sit credibly beside Stripe and Wise. The convention is deliberate: the familiar frame lets the live results be the interesting thing. Nothing decorative competes with a real response the visitor just caused.",
+    "keyCharacteristics": [
+      "White ground, deep navy ink, one violet accent",
+      "One elevated surface: the live ledger, pinned for the whole story",
+      "Large, tightly set headlines and tabular figures",
+      "Results stated in words, with a drawn icon"
+    ],
+    "rules": [
+      {
+        "name": "The Earned Colour Rule",
+        "body": "Green and red mean paid and refused, and nothing else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Never Colour Alone Rule",
+        "body": "Every state pairs its colour with a drawn tick or cross, and a word nearby.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do show only figures that came from an API response.",
+      "Do use mono only for real technical data.",
+      "Do keep \"Fake money\" visible on the page."
+    ],
+    "donts": [
+      "Don't use a label above a heading.",
+      "Don't use Unicode glyphs or emoji as icons; use the drawn icon set.",
+      "Don't copy another company's logo, name or marks. The bar is their craft, not their identity."
+    ]
+  }
+}

@@ -7,6 +7,13 @@ later), and it stays correct under concurrent requests and client retries.
 I built it as a learning project to understand how real payment systems keep money correct: not just
 the happy path, but races, retries, refunds and data that drifts.
 
+![Demo page with a live ledger showing each account's balance and a passing reconciliation check](docs/images/demo-overview.png)
+
+The demo page lets you cause the failures yourself. Here, 20 SGD 10.00 payments hit an account holding
+SGD 90.00 at once: 9 are paid, 11 are refused, and the balance stops at exactly zero.
+
+![Twenty simultaneous payments: nine paid, eleven refused, and a balance of SGD 0.00](docs/images/demo-race.png)
+
 ## Features
 
 - **Accounts**: customer accounts, plus system accounts that represent money entering the ledger
@@ -18,6 +25,7 @@ the happy path, but races, retries, refunds and data that drifts.
 - **Transaction history** per account, with cursor-based pagination
 - **Reconciliation endpoint** that checks the whole ledger against its rules
 - **API docs** (OpenAPI / Swagger UI), **metrics** (Micrometer) and **logs**
+- **Live demo page** that walks through retries, races, refunds and holds against the real API
 - Runs with one command using **Docker Compose**
 
 ## Tech stack
@@ -160,6 +168,7 @@ docker compose up --build
 This starts PostgreSQL and the service. The app waits until Postgres passes its health check, then runs
 the database migrations on startup.
 
+- Live demo: http://localhost:8080/
 - Health: http://localhost:8080/actuator/health
 - Swagger UI: http://localhost:8080/swagger-ui/index.html
 
@@ -250,6 +259,7 @@ src/main/kotlin/dev/samueltan/ledger/
   admin/      reconciliation
   common/     errors (ProblemDetail) shared by all features
 src/main/resources/db/migration/   Flyway migrations V1–V6
+src/main/resources/static/         the demo page (one HTML file, no build step)
 ```
 
 ## Limitations and next steps
